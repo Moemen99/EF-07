@@ -238,3 +238,125 @@ erDiagram
 5. Add appropriate indexes on foreign key columns
 6. Consider adding validation attributes for additional properties
 7. Document the purpose of additional attributes in the join entity
+
+
+
+# Configuring Many-to-Many Relationships with Fluent API in EF Core
+
+## Fluent API Configuration Steps
+
+### 1. Configure Join Entity Primary Key
+```csharp
+modelBuilder.Entity<StudentCourse>()
+    .HasKey(sc => new { sc.StudentId, sc.CourseId }); // Composite Primary Key
+```
+
+### 2. Configure Student-StudentCourse Relationship
+```csharp
+// Full configuration
+modelBuilder.Entity<Student>()
+    .HasMany(s => s.StudentCourses)
+    .WithOne(sc => sc.Student);
+
+// Simplified version (when navigation property naming follows convention)
+modelBuilder.Entity<Student>()
+    .HasMany(s => s.StudentCourses)
+    .WithOne();
+```
+
+### 3. Configure Course-StudentCourse Relationship
+```csharp
+// Full configuration
+modelBuilder.Entity<Course>()
+    .HasMany(c => c.CourseStudents)
+    .WithOne(sc => sc.Course);
+
+// Simplified version
+modelBuilder.Entity<Course>()
+    .HasMany(c => c.CourseStudents)
+    .WithOne();
+```
+
+## Database Schema
+```mermaid
+erDiagram
+    Student ||--o{ StudentCourse : has
+    Course ||--o{ StudentCourse : has
+    
+    Student {
+        int Id PK
+        string Name
+        int Age
+        string Address
+    }
+    
+    Course {
+        int Id PK
+        string Title
+    }
+    
+    StudentCourse {
+        int StudentId PK,FK
+        int CourseId PK,FK
+        int Grade
+    }
+
+    %% Composite Primary Key notation
+    StudentCourse ||--|{ PK : "Composite PK"
+    PK {
+        StudentId + CourseId
+    }
+```
+
+## Additional Configuration Options
+
+### Relationship Requirements
+```csharp
+modelBuilder.Entity<Student>()
+    .HasMany(s => s.StudentCourses)
+    .WithOne(sc => sc.Student)
+    .IsRequired(); // Make the relationship required
+
+modelBuilder.Entity<Course>()
+    .HasMany(c => c.CourseStudents)
+    .WithOne(sc => sc.Course)
+    .IsRequired(false); // Make the relationship optional
+```
+
+### Foreign Key Configuration
+```csharp
+modelBuilder.Entity<Student>()
+    .HasMany(s => s.StudentCourses)
+    .WithOne(sc => sc.Student)
+    .HasForeignKey(sc => sc.StudentId);
+```
+
+## Implementation Steps
+
+1. Create entity classes
+2. Configure composite key
+3. Set up relationships using Fluent API
+4. Add migration:
+   ```bash
+   add-migration AddStudentCourseRelationship
+   ```
+5. Update database:
+   ```bash
+   update-database
+   ```
+
+## Key Points
+1. Composite primary key must be configured using Fluent API
+2. Both sides of the relationship should be configured
+3. Navigation properties can be configured explicitly or by convention
+4. Additional relationship configurations (IsRequired, DeleteBehavior, etc.) can be chained
+5. Migration will create appropriate indexes for foreign keys
+
+## Best Practices
+1. Configure composite keys before relationships
+2. Use meaningful names for navigation properties
+3. Consider adding appropriate indexes
+4. Document relationship requirements
+5. Test cascade delete behaviors
+6. Validate data integrity constraints
+7. Consider adding appropriate foreign key constraints
