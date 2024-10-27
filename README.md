@@ -304,7 +304,7 @@ erDiagram
     %% Composite Primary Key notation
     StudentCourse ||--|{ PK : "Composite PK"
     PK {
-        StudentId + CourseId
+        StudentId , CourseId
     }
 ```
 
@@ -356,7 +356,146 @@ modelBuilder.Entity<Student>()
 1. Configure composite keys before relationships
 2. Use meaningful names for navigation properties
 3. Consider adding appropriate indexes
+
 4. Document relationship requirements
 5. Test cascade delete behaviors
 6. Validate data integrity constraints
 7. Consider adding appropriate foreign key constraints
+
+# Inheritance Mapping in Entity Framework Core: Table Per Concrete Class (TPC)
+
+## Overview
+Table Per Concrete Class (TPCC) is an inheritance mapping strategy where each concrete class in the inheritance hierarchy gets its own database table containing all properties (inherited and specific).
+
+## Class Hierarchy
+
+```mermaid
+classDiagram
+    Employee <|-- FullTime
+    Employee <|-- PartTime
+    
+    class Employee {
+        +int Id
+        +string Name
+        +int? Age
+        +string? Address
+    }
+    
+    class FullTime {
+        +decimal Salary
+        +DateTime StartDate
+    }
+    
+    class PartTime {
+        +decimal HourRate
+        +int CountOfHours
+    }
+```
+
+## Database Schema (TPCC)
+Each concrete class gets its own table with all properties:
+
+### FullTimeEmployee Table
+| Column     | Type      | Description           |
+|------------|-----------|----------------------|
+| ID         | int       | Primary Key          |
+| Name       | string    | From base class      |
+| Age        | int?      | From base class      |
+| Address    | string?   | From base class      |
+| Salary     | decimal   | Specific to FullTime |
+| StartDate  | DateTime  | Specific to FullTime |
+
+### PartTimeEmployee Table
+| Column        | Type    | Description           |
+|--------------|---------|----------------------|
+| ID           | int     | Primary Key          |
+| Name         | string  | From base class      |
+| Age          | int?    | From base class      |
+| Address      | string? | From base class      |
+| HourRate     | decimal | Specific to PartTime |
+| CountOfHours | int     | Specific to PartTime |
+
+## Implementation
+
+### 1. Base Class (Employee)
+```csharp
+internal abstract class Employee
+{
+    public int Id { get; set; }
+    public string Name { get; set; }
+    public int? Age { get; set; }
+    public string? Address { get; set; }
+}
+```
+
+### 2. Concrete Classes
+```csharp
+internal class FullTime : Employee
+{
+    public decimal Salary { get; set; }
+    public DateTime StartDate { get; set; }
+}
+
+internal class PartTime : Employee
+{
+    public decimal HourRate { get; set; }
+    public int CountOfHours { get; set; }
+}
+```
+
+### 3. DbContext Configuration
+```csharp
+public class CompanyDbContext : DbContext
+{
+    // Only concrete classes need DbSet properties
+    public DbSet<FullTime> FullTimeEmployees { get; set; }
+    public DbSet<PartTime> PartTimeEmployees { get; set; }
+
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        optionsBuilder.UseSqlServer(
+            "Server=.;Database=Route;Trusted_Connection=True;"
+        );
+    }
+}
+```
+
+## Key Points
+
+1. **Abstract Base Class**:
+   - Not required by EF Core
+   - Recommended for business logic
+   - Prevents instantiation of base class
+
+2. **Database Tables**:
+   - One table per concrete class
+   - Each table contains all properties (inherited + specific)
+   - No table for abstract base class
+
+3. **DbSet Requirements**:
+   - Only concrete classes need DbSet properties
+   - Base class doesn't need DbSet
+
+4. **Required NuGet Packages**:
+   ```xml
+   <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+   <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" />
+   ```
+
+## Benefits of TPCC
+1. Clean table structure
+2. No nullable columns for subclass-specific properties
+3. Easy to understand and maintain
+4. Efficient querying of concrete types
+
+## Considerations
+1. Duplicate columns across tables
+2. More complex queries when querying base type
+3. Schema changes to base class require updating all tables
+
+## Best Practices
+1. Make base class abstract when business logic requires it
+2. Use meaningful names for DbSet properties
+3. Consider using a naming convention for tables
+4. Document inheritance strategy in code
+5. Consider performance implications for polymorphic queries
