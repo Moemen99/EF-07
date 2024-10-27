@@ -493,3 +493,161 @@ public class CompanyDbContext : DbContext
 3. Consider using a naming convention for tables
 4. Document inheritance strategy in code
 5. Consider performance implications for polymorphic queries
+
+
+# Inheritance Mapping Strategies in EF Core: TPH vs TPC
+
+## Table Per Hierarchy (TPH)
+
+### Configuration
+```csharp
+public class RouteDbContext : DbContext
+{
+    // Single DbSet for all employee types
+    public DbSet<Employee> Employees { get; set; }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        // Decimal precision configuration
+        modelBuilder.Entity<FullTime>()
+            .Property(f => f.Salary)
+            .HasColumnType("decimal(18,3)");
+            
+        modelBuilder.Entity<PartTime>()
+            .Property(p => p.HourRate)
+            .HasColumnType("decimal(12,4)");
+    }
+}
+```
+
+### Key Features
+1. Single table for entire hierarchy
+2. Discriminator column added automatically
+3. All properties from derived classes in same table
+4. Nullable columns for type-specific properties
+
+### Data Access Examples
+```csharp
+// Inserting different employee types
+Employee fullTime = new FullTime()
+{
+    Name = "Ahmed Nasr",
+    Address = "Cairo",
+    Age = 22,
+    Salary = 5_000,
+    StartDate = DateTime.Now
+};
+
+Employee partTime = new PartTime()
+{
+    Name = "Mona Ali",
+    Address = "Alex",
+    Age = 26,
+    HourRate = 100,
+    CountOfHours = 120
+};
+
+// Adding to single DbSet
+dbContext.Employees.Add(fullTime);
+dbContext.Employees.Add(partTime);
+
+// Querying specific types
+foreach(var full in dbContext.Employees.OfType<FullTime>())
+{
+    Console.WriteLine($"EmployeeName: {full.Name}, Salary: {full.Salary}");
+}
+
+foreach(var part in dbContext.Employees.OfType<PartTime>())
+{
+    Console.WriteLine($"EmployeeName: {part.Name}, Hour Rate: {part.HourRate}");
+}
+```
+
+## Table Per Concrete Class (TPC)
+
+### Configuration
+```csharp
+public class RouteDbContext : DbContext
+{
+    // Separate DbSets for each concrete class
+    public DbSet<FullTime> FullTimeEmployees { get; set; }
+    public DbSet<PartTime> PartTimeEmployees { get; set; }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        // Configure TPC strategy
+        modelBuilder.Entity<FullTime>().HasBaseType<Employee>();
+        modelBuilder.Entity<PartTime>().HasBaseType<Employee>();
+        
+        // Decimal precision configuration
+        modelBuilder.Entity<FullTime>()
+            .Property(f => f.Salary)
+            .HasColumnType("decimal(18,3)");
+            
+        modelBuilder.Entity<PartTime>()
+            .Property(p => p.HourRate)
+            .HasColumnType("decimal(12,4)");
+    }
+}
+```
+
+### Key Features
+1. Separate table for each concrete class
+2. No discriminator column needed
+3. No nullable columns for type-specific properties
+4. Independent tables with no relationships
+
+### Data Access Examples
+```csharp
+// Adding employees to specific DbSets
+dbContext.FullTimeEmployees.Add(fullTime);
+dbContext.PartTimeEmployees.Add(partTime);
+
+// Querying specific types directly
+foreach(var full in dbContext.FullTimeEmployees)
+{
+    Console.WriteLine($"EmployeeName: {full.Name}, Salary: {full.Salary}");
+}
+```
+
+## Important Considerations
+
+### Decimal Precision
+- Default precision: 18,2
+- Can be configured using:
+  - `HasColumnType()`
+  - `HasPrecision()`
+- Configure in `OnModelCreating` to avoid warnings
+
+### DbSet Naming Conventions
+1. TPH:
+   - Use plural form of base class name (e.g., `Employees`)
+   - Non-conventional names require extra configuration
+
+2. TPC:
+   - Use meaningful names for concrete class DbSets
+   - Consider naming pattern for consistency
+
+### Query Performance
+1. TPH:
+   - Single table queries
+   - Requires filtering using `OfType<T>()`
+   - More efficient for polymorphic queries
+
+2. TPC:
+   - Direct table access
+   - No need for type filtering
+   - More efficient for specific type queries
+   - Requires joins for polymorphic queries
+
+### Best Practices
+1. Choose strategy based on:
+   - Query patterns
+   - Data access patterns
+   - Storage requirements
+   - Maintenance needs
+
+2. Use decimal precision configuration to avoid warnings
+3. Follow naming conventions for DbSet properties
+4. Consider indexing strategy for each approach
+5. Document inheritance strategy choice
