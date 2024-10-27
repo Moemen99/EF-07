@@ -301,10 +301,11 @@ erDiagram
         int Grade
     }
 
-    %% Composite Primary Key notation
-    StudentCourse ||--|{ PK : "Composite PK"
-    PK {
-        StudentId , CourseId
+    %% Composite Primary Key notation - fixed syntax
+    StudentCourse }|--|| CompositePK : "consists of"
+    CompositePK {
+        StudentId PK
+        CourseId PK
     }
 ```
 
